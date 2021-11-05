@@ -6,9 +6,11 @@
 using namespace std;
 #define red 1 //RBTree의 색 red 정수 1로 define
 #define black 0 //RBTree의 색 black 정수 0으로 define
-
+#define nil -1
 //Properties -> 1.루트:black 2.leaf:black 3.red의 자식은 black 4.same black depth
- 
+
+//넣을때 black color인 nil들도 같이 넣어줘야하는걸 처리해야함 ,, 다시
+
 class ApplicationInfo {
 public:
     int id; //애플리케이션 id
@@ -21,9 +23,9 @@ public:
     ApplicationInfo * left;
     ApplicationInfo * right;
     
-    ApplicationInfo(){ //기본 생성자
-        id=byte=price=0;
-        color=red;
+    ApplicationInfo(){ //기본 생성자 (주로 nil node를 위해 쓸듯)
+        id=byte=price=nil;
+        color=black;
         appName=nullptr;
         parent=left=right=NULL;
     }
@@ -61,7 +63,7 @@ public:
         double tmp;
         tmp = (100-p)/100;
         tmp*=price;
-        saledPrice = floor(tmp);
+        saledPrice = floor(tmp); //할인가의 소수점은 버림
         return saledPrice;
     }
     
@@ -75,7 +77,7 @@ public:
                 return tmp;
             }
             else if(tmp->id > id){ //찾으려는 id가 지금꺼보다 작다면 왼쪽 자식으로 가기
-                if(tmp->left != NULL){
+                if(tmp->left->id != nil){
                     tmp = tmp->left;
                     ++depthtmp;
                 }
@@ -84,7 +86,7 @@ public:
                 }
             }
             else { //찾으려는 id가 지금꺼보다 크다면 오른쪽 자식으로 가기
-                if(tmp->right != NULL){
+                if(tmp->right->id != nil){
                     tmp = tmp->right;
                     ++depthtmp;
                 }
@@ -104,7 +106,7 @@ public:
         
         while(1){
             if(tmp->id > id){ //left child로 가야하는 조건의 상태
-                if(tmp->left == NULL){ //left child가 없다? 내가 그의 left child가 되면 된다
+                if(tmp->left->id == nil){ //left child가 없다? 내가 그의 left child가 되면 된다
                     //그럼 나의 부모가 될 tmp를 return하고 끝
                     break;
                 }
@@ -115,7 +117,7 @@ public:
             }
             else { //right child로 가야하는 조건의 상태
                 //같은 경우는 없다(이 함수를 register에서만 쓸건데, 같은 경우는 이미 처리해줘서 이 함수를 쓰도록 하질 않음)
-                if(tmp->right == NULL){
+                if(tmp->right->id == nil){
                     break;
                 }
                 else{
@@ -129,6 +131,8 @@ public:
     }
     
     bool isDoubleRedState(ApplicationInfo * now){
+        //root면 이 함수를 실행 안해서 parent가 없는 경우는 생각안해도 된다.
+        
         if(now->parent->color == red) return true; //double red가 맞다. -> restructure or recolor
         else return false; //double red가 아니다. -> 그냥 냅둠.
     }
@@ -137,7 +141,7 @@ public:
     
     void registerNewApplication(int id,string appName, int byte, int price){ //애플리케이션 등록 기능
         int color = red; //insert때는 무조건 color Red인 Node로 insert
-        ApplicationInfo * tmp = searchSpecificApplication(id);
+        ApplicationInfo * tmp = searchSpecificApplication(id); //일단 있는지 찾음
         
         if(tmp!=NULL){ //이미 있는 id를 등록하려하니까 등록 거절
             cout<<depthtmp<<"\n";
@@ -148,7 +152,12 @@ public:
             
             if(allApplications.size() == 1) { //initial insert (무조건 root가 된다)
                 root = tmp;
+                depthtmp = 0;
                 root->color = black; //root property 만족시키기 위함
+                
+                //nil node에도 부모로 얘를 넣어줘야하나 ??...... 생각해보기
+                root->left = new ApplicationInfo(); //nil node들을 함께 넣어줌 (기본생성자)
+                root->right = new ApplicationInfo();
             }
             else {
                 
@@ -200,9 +209,10 @@ public:
     void applySaledPrice(int rangeFront,int rangeBack,double salePercent){ //애플리케이션 할인 기능
         //sort vs sequential search 중 생각해보기
         sort(allApplications.begin(),allApplications.end(),comp);
+        
         for(auto i : allApplications){
             if(i->id < rangeFront) continue;
-            if(i->id > rangeFront) break;
+            if(i->id > rangeBack) break;
             
             i->price = calculateSalePrice(i->price,salePercent); //range에 맞다면 update 수행
         }
