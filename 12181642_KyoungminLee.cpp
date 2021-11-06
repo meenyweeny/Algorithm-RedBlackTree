@@ -50,6 +50,7 @@ public:
     ApplicationInfo * root;
     int depthtmp; //결과에서 depth 출력이 필요할 시 사용
     vector<ApplicationInfo *> allApplications; //모든 애플리케이션들의 모음(for updateSalePrice)
+    ApplicationInfo * restructureOrder[3]; //restructuring때 order 설정에 사용
     
     managementAppStore(){ //생성자
         root = NULL;
@@ -152,8 +153,45 @@ public:
         }
     }
     
-    ApplicationInfo * restructuring (ApplicationInfo * now){
-        //1.중간이 될 node 찾기
+    void setOrderToRestructure(ApplicationInfo * child, ApplicationInfo * parent, ApplicationInfo * grandparent){
+        
+        vector<int> idSortingVector;
+        idSortingVector.push_back(child->id);
+        idSortingVector.push_back(parent->id);
+        idSortingVector.push_back(grandparent->id);
+        
+        sort(idSortingVector.begin(),idSortingVector.end()); //ascending order로 key를 sort
+        
+        for(int i=0; i<3; i++){ //vector에 존재하는 것들 순서대로 id에 맞는 것들 찾아주면서 넣는 과정
+            if(child->id == idSortingVector[i]){
+                restructureOrder[i]=child;
+            }
+            else if(parent->id == idSortingVector[i]){
+                restructureOrder[i]=parent;
+            }
+            else {
+                restructureOrder[i]=grandparent;
+            }
+        }
+    }
+    
+    void restructuring (ApplicationInfo * now){
+        ApplicationInfo * myParent = now->parent;
+        ApplicationInfo * myGrandParent = myParent->parent;
+        
+        setOrderToRestructure(now, myParent, myGrandParent); //순서를 정해 바뀔 위치 찾는다.
+        
+        //restructureOrder라는 array에 바뀔 것들이 순서대로 저장되어있다.
+        
+        ApplicationInfo * leftChild = restructureOrder[0];
+        ApplicationInfo * rightChild = restructureOrder[2];
+        ApplicationInfo * subRoot = restructureOrder[1];
+        
+        leftChild->color = rightChild->color = red; //색깔 바꿔주는 부분
+        subRoot->color = black;
+        
+        //어떤 노드가 어떤 위치로 가느냐에 따라 세분화하여 실행
+
     }
     
     ApplicationInfo * recoloring (ApplicationInfo * now){
@@ -193,27 +231,31 @@ public:
                 depthtmp = 0;
                 root->color = black; //root property 만족시키기 위함
             
+                //nil node 삽입 및 관계 연결 과정
                 leftnil->parent = root;
                 rightnil->parent = root;
-                
                 root->left = leftnil;
                 root->right = rightnil;
             }
             
-            else {
+            else { //root가 아닐 때
                 
                 ApplicationInfo * myParent = findMyParent(id);
+                //내가 삽입되어야 할 위치 찾기 -> 즉 나의 parent가 될 사람 찾기
                 tmp->parent = myParent;
                 
-                if(myParent->id>id){ //내가 부모의 left child
+                if(myParent->id>id){ //내가 부모의 left child가 될 때
                     myParent->left = tmp;
                 }
-                else{ //내가 부모의 right child
+                else{ //내가 부모의 right child가 될 때
                     myParent->right = tmp;
                 }
                 
+                //nil node 삽입 및 관계 연결 과정
                 tmp->left = leftnil;
                 tmp->right = rightnil;
+                leftnil->parent = tmp;
+                rightnil->parent = tmp;
                 
                 ApplicationInfo * remedy = tmp;
                 //double red 상태 check
@@ -225,11 +267,15 @@ public:
                     if(isDoubleRedState(remedy)){ //double red 상태가 맞으면?
                         //uncle에 따라 restructuring or recoloring
                         //subtree또한 적절히 처리해야한다.
-                        if(howToRemedy(remedy)){
-                            remedy = restructuring(remedy);
+                        
+                        if(howToRemedy(remedy)){ //refactor 방법이 restructure일때
+                            restructuring(remedy); //restructure 실행
+                            break; //실행 후엔 무조건 double red가 아니다 -> while문 탈출
                         }
-                        else{
-                            remedy = recoloring(remedy);
+                        else{ //refactor 방법이 recolor일때
+                            remedy = recoloring(remedy); //recolor 실행
+                            //구조의 변경은 없지만 색의 변경으로 double red propagate 가능성 존재
+                            //또 double red state인지 확인하며 while을 돌기 위해 remedy node ptr update
                         }
                     }
                     
@@ -239,11 +285,12 @@ public:
                     
                 }
                 
-                root->color = black; //root property 만족을 위함
+                root->color = black; //root property 만족을 위해 항상 색 바꿔주는 부분
+                //(while에서 root까지 propagate 되었을 때 미숙한 처리를 도움)
                 
             }
             
-            tmp = searchSpecificApplication(id);
+            tmp = searchSpecificApplication(id); //내가 방금 넣은 id의 애플리케이션 찾기 함수 수행 (depth 찾으려고)
             cout<<depthtmp<<"\n";
         }
         
