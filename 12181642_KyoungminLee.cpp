@@ -13,7 +13,7 @@ using namespace std;
 
 class ApplicationInfo {
 public:
-    int id; //애플리케이션 id
+    int id; //애플리케이션 id (key for redblack tree)
     string appName; //애플리케이션 이름
     int byte; //애플리케이션 용량
     int price; //애플리케이션 가격
@@ -23,7 +23,7 @@ public:
     ApplicationInfo * left;
     ApplicationInfo * right;
     
-    ApplicationInfo(){ //기본 생성자 (주로 nil node를 위해 쓸듯)
+    ApplicationInfo(){ //기본 생성자 (주로 nil node를 위해 쓰일 것이라 nil을 위한 상태로 초기화)
         id=byte=price=nil;
         color=black;
         appName=nullptr;
@@ -45,18 +45,16 @@ bool comp(ApplicationInfo * a, ApplicationInfo * b){ //application을 id 기준�
     else return false;
 }
 
-class redBlackTree {
+class managementAppStore {
 public:
     ApplicationInfo * root;
     int depthtmp; //결과에서 depth 출력이 필요할 시 사용
     vector<ApplicationInfo *> allApplications; //모든 애플리케이션들의 모음(for updateSalePrice)
     
-    redBlackTree(){ //생성자
+    managementAppStore(){ //생성자
         root = NULL;
         depthtmp = 0;
     }
-    
-    //==========================================================
     
     int calculateSalePrice(int price,double p){ //할인가 계산함수
         int saledPrice;
@@ -67,7 +65,6 @@ public:
         return saledPrice;
     }
     
-    //완료
     ApplicationInfo * searchSpecificApplication(int id){ //search 함수 -> 얘가 depth도 찾아줌
         depthtmp=0; //root의 depth는 0
         ApplicationInfo * tmp = root; //root부터 탐색 시작
@@ -105,7 +102,7 @@ public:
         //핵심 -> 원하는 위치에 child가 null이면 그게 부모가 된다고 return하기
         
         while(1){
-            if(tmp->id > id){ //left child로 가야하는 조건의 상태
+            if(tmp->id > id){ //left child로 가야하는 조건
                 if(tmp->left->id == nil){ //left child가 없다? 내가 그의 left child가 되면 된다
                     //그럼 나의 부모가 될 tmp를 return하고 끝
                     break;
@@ -132,12 +129,50 @@ public:
     
     bool isDoubleRedState(ApplicationInfo * now){
         //root면 이 함수를 실행 안해서 parent가 없는 경우는 생각안해도 된다.
-        
         if(now->parent->color == red) return true; //double red가 맞다. -> restructure or recolor
         else return false; //double red가 아니다. -> 그냥 냅둠.
     }
     
-    //==========================================================
+    bool howToRemedy(ApplicationInfo * now){
+        if(now->parent == now->parent->parent->left){ //나의 부모가 조부모의 left node일 때
+            if(now->parent->parent->right->color == black){
+                return true; //restructuring하기
+            }
+            else {
+                return false; //recoloring하기
+            }
+        }
+        else{
+            if(now->parent->parent->left->color == black){ //내가 부모의 right node일 때
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+    }
+    
+    ApplicationInfo * restructuring (ApplicationInfo * now){
+        //1.중간이 될 node 찾기
+    }
+    
+    ApplicationInfo * recoloring (ApplicationInfo * now){
+        ApplicationInfo * myParent = now->parent;
+        ApplicationInfo * myGrandParent = myParent->parent;
+        ApplicationInfo * myUncle;
+        if(myParent == myGrandParent->left){
+            myUncle = myGrandParent->right;
+        }
+        else{
+            myUncle = myGrandParent->left;
+        }
+        
+        myGrandParent->color = now->color = red;
+        myUncle->color = myParent->color = black;
+        
+        return myGrandParent;
+    }
+    
     
     void registerNewApplication(int id,string appName, int byte, int price){ //애플리케이션 등록 기능
         int color = red; //insert때는 무조건 color Red인 Node로 insert
@@ -150,23 +185,62 @@ public:
             tmp = new ApplicationInfo(id,appName,byte,price,color); //받은 정보로 insert할 node 생성
             allApplications.push_back(tmp); //모든 application 가진 vector에 넣기
             
+            ApplicationInfo * leftnil = new ApplicationInfo(); //black color nil node 삽입위한 nil들
+            ApplicationInfo * rightnil = new ApplicationInfo();
+            
             if(allApplications.size() == 1) { //initial insert (무조건 root가 된다)
                 root = tmp;
                 depthtmp = 0;
                 root->color = black; //root property 만족시키기 위함
+            
+                leftnil->parent = root;
+                rightnil->parent = root;
                 
-                //nil node에도 부모로 얘를 넣어줘야하나 ??...... 생각해보기
-                root->left = new ApplicationInfo(); //nil node들을 함께 넣어줌 (기본생성자)
-                root->right = new ApplicationInfo();
+                root->left = leftnil;
+                root->right = rightnil;
             }
+            
             else {
                 
-                //insert 기능 넣기
-                //insert할 자리를 찾기 -> 즉 나의 부모가 될 아이를 찾는 것.
-                //insert한 자리에서, parent가 black이면 끝, red면 refactor
-                //restructure,recolor의 여부를 uncle의 색을 보고 판단. 판단 후 수행
-                //언제까지? root까지 propagate됐거나, parent가 black이거나!
-                //또, 내가 leaf node인지 확인해서 그렇다면 무조건 color가 black이어야 한다.
+                ApplicationInfo * myParent = findMyParent(id);
+                tmp->parent = myParent;
+                
+                if(myParent->id>id){ //내가 부모의 left child
+                    myParent->left = tmp;
+                }
+                else{ //내가 부모의 right child
+                    myParent->right = tmp;
+                }
+                
+                tmp->left = leftnil;
+                tmp->right = rightnil;
+                
+                ApplicationInfo * remedy = tmp;
+                //double red 상태 check
+                while(1){
+                    
+                    if(remedy == root) //내가 root면 끝남
+                        break;
+                    
+                    if(isDoubleRedState(remedy)){ //double red 상태가 맞으면?
+                        //uncle에 따라 restructuring or recoloring
+                        //subtree또한 적절히 처리해야한다.
+                        if(howToRemedy(remedy)){
+                            remedy = restructuring(remedy);
+                        }
+                        else{
+                            remedy = recoloring(remedy);
+                        }
+                    }
+                    
+                    else{ //double red 상태 아니면 끝남
+                        break;
+                    }
+                    
+                }
+                
+                root->color = black; //root property 만족을 위함
+                
             }
             
             tmp = searchSpecificApplication(id);
@@ -207,7 +281,7 @@ public:
     
     //완료
     void applySaledPrice(int rangeFront,int rangeBack,double salePercent){ //애플리케이션 할인 기능
-        //sort vs sequential search 중 생각해보기
+        //sequential search in ordered vs unsorted -> 선택 (시간 복잡도는 O(n)으로 같지만 실제는?)
         sort(allApplications.begin(),allApplications.end(),comp);
         
         for(auto i : allApplications){
@@ -219,7 +293,7 @@ public:
     }
 };
 
-
+//global variables for main function
 int t; //질의 수
 char cmd; //질의 (I,F,R,D)
 
@@ -228,7 +302,7 @@ int main(){
     cout.tie(NULL);
     ios_base::sync_with_stdio(false);
 
-    redBlackTree RBTree;
+    managementAppStore myAppStore;
     
     cin>>t;
     while(t--){
@@ -244,7 +318,7 @@ int main(){
             cin>>id;
             cin>>appName;
             cin>>byte>>price;
-            RBTree.registerNewApplication(id,appName,byte,price);
+            myAppStore.registerNewApplication(id,appName,byte,price);
         }
         else if(cmd=='F'){ //애플리케이션 검색 기능 수행
             //애플리케이션 존재하면? 트리에서의 깊이, 애플리케이션 이름, 용량, 가격 출력
@@ -252,7 +326,7 @@ int main(){
             
             int id;
             cin>>id;
-            RBTree.searchAndShowApplication(id);
+            myAppStore.searchAndShowApplication(id);
             
         }
         else if(cmd=='R'){ //애플리케이션 업데이트 기능 수행
@@ -265,7 +339,7 @@ int main(){
             cin>>id;
             cin>>updateName;
             cin>>updateByte>>updatePrice;
-            RBTree.searchAndUpdateApplication(id, updateName, updateByte, updatePrice);
+            myAppStore.searchAndUpdateApplication(id, updateName, updateByte, updatePrice);
             
         }
         else if(cmd=='D'){ //애플리케이션 할인 기능 수행
@@ -275,7 +349,7 @@ int main(){
             double salePercent;
             cin>>rangeFront>>rangeBack;
             cin>>salePercent;
-            RBTree.applySaledPrice(rangeFront, rangeBack, salePercent);
+            myAppStore.applySaledPrice(rangeFront, rangeBack, salePercent);
         }
         
     }
