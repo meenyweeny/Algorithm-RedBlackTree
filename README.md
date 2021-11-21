@@ -1,4 +1,4 @@
-# Algorithm_RBtree
+# Implement RedBlackTree
 
 Algorithm assignment #1
 
